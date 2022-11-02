@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 #include <deque>
 #include <stack>
 #include <map>
@@ -13,8 +14,13 @@ enum ExprType {
     WHITESPACE, // 6
     CAPTURE_OPEN, // 7
     CAPTURE_CLOSE, // 8
-    CAPTURE // 9
+    CAPTURE, // 9
+    REPEAT_NONE_OR_MORE, // 10
+    REPEAT_ONCE_OR_MORE, // 11
+    REPEAT_NONE_OR_ONCE, // 12
+    
 };
+
 
 struct Expr {
     ExprType type;
@@ -22,10 +28,18 @@ struct Expr {
     std::deque<Expr> children = {};
 };
 
+using re_t = std::deque<Expr>;
+
+struct ReMatch {
+    int start_idx;
+    unsigned int size;
+    std::vector<std::string> captures;
+};
+
 #define PUSH_FIXED if (content.length()) toks.push_back(Expr{ExprType::FIXED, content}); content.clear();
-std::deque<Expr> compile_repattern(std::string s) {
+re_t compile_repattern(std::string s) {
     std::string content;
-    std::deque<Expr> toks;
+    re_t toks;
     std::stack<char> bracket_stack; 
     for (unsigned int i=0; i < s.length(); i++) {
         switch (s[i]) {
@@ -41,6 +55,26 @@ std::deque<Expr> compile_repattern(std::string s) {
                 PUSH_FIXED
                 toks.push_back(Expr{ExprType::WILDCARD});
                 break;
+            case '*':
+            {
+                PUSH_FIXED
+                Expr preceding = toks.back();
+                toks.push_back(Expr{ExprType::REPEAT_NONE_OR_MORE, "", {ExprType::STR_START, preceding}});
+                break;
+            }
+            case '+':
+            {
+                PUSH_FIXED
+                Expr preceding = toks.back();
+                toks.push_back(Expr{ExprType::REPEAT_ONCE_OR_MORE, "", {ExprType::STR_START, preceding}});
+                break;
+            }
+            case '?':
+            {
+                PUSH_FIXED
+                Expr preceding = toks.back();
+                toks.push_back(Expr{ExprType::REPEAT_NONE_OR_ONCE, "", {ExprType::STR_START, preceding}});
+            }
             case '(':
                 PUSH_FIXED
                 toks.push_back(Expr{ExprType::CAPTURE_OPEN});
@@ -105,9 +139,10 @@ std::deque<Expr> compile_repattern(std::string s) {
     return toks;
 }
 
-int match_repattern(std::deque<Expr> pattern, std::string text, unsigned int* match_size_ret) {
+ReMatch match_repattern(re_t &pattern, std::string &text) {
     int match_start_idx = 0;
     unsigned int match_size = 0;
+    std::vector<std::string> captures;
     bool found = false;
     bool early_exit = false;
     while (!found && !early_exit && match_start_idx < (int) text.length()) {
@@ -152,13 +187,25 @@ int match_repattern(std::deque<Expr> pattern, std::string text, unsigned int* ma
                 match_size++;
             } else if (expr.type == ExprType::CAPTURE) {
                 std::string remain = text.substr(match_start_idx + (int) match_size);
-                unsigned int size;
-                int idx = match_repattern(expr.children, remain, &size);
-                if (idx == -1) break;
-                match_size += size;
-                // std::cout << "charset match at " << match_start_idx + idx << std::endl;
+                ReMatch m = match_repattern(expr.children, remain);
+                if (m.start_idx == -1)
+                    break;
+                captures.push_back(remain.substr(0, m.size));
+                match_size += m.size;
+            } else if (expr.type == ExprType::REPEAT_NONE_OR_MORE || expr.type == ExprType::REPEAT_ONCE_OR_MORE || expr.type == ExprType::REPEAT_NONE_OR_ONCE) {
+                std::string remain = text.substr(match_start_idx + (int) match_size);
+                ReMatch m = match_repattern(expr.children, remain);
+                if (expr.type == ExprType::REPEAT_ONCE_OR_MORE && m.start_idx == -1)
+                    break;
+                match_size += m.size;
+                if (expr.type != ExprType::REPEAT_NONE_OR_ONCE) {
+                    while (m.start_idx != -1 && (unsigned int) match_start_idx + match_size < text.length()) {
+                        remain = text.substr(match_start_idx + (int) match_size);
+                        m = match_repattern(expr.children, remain);
+                        match_size += m.size;
+                    }
+                }
             }
-            
             matching_exprs++;
             if (matching_exprs == pattern.size())
                 found = true;
@@ -170,13 +217,12 @@ int match_repattern(std::deque<Expr> pattern, std::string text, unsigned int* ma
         }
     }
     
-    *match_size_ret = match_size;
-    if (!found || early_exit)
-        return -1;
-    return match_start_idx;
+    if (!found || early_exit) match_start_idx = -1;
+        
+    return ReMatch {match_start_idx, match_size, captures};
 };
 
-void print_children_recurs(std::deque<Expr> childs) {
+void print_children_recurs(re_t &childs) {
     for (Expr e: childs) {
         std::cout << e.type << " " << e.content << std::endl;
         if (e.children.size())
@@ -185,14 +231,18 @@ void print_children_recurs(std::deque<Expr> childs) {
 }
 
 int main() {
-    std::deque<Expr> compiled = compile_repattern(R"(a(\d))");
-
+    re_t compiled = compile_repattern(R"(a?)");
     print_children_recurs(compiled);
+    
+    std::string text = "aaad";
+    ReMatch m = match_repattern(compiled, text);
 
-    unsigned int size;
-    int idx = match_repattern(compiled, "aa1", &size);
     std::cout << "\n- Parse - \n";
-    std::cout << "Index: " << idx << "\n";
-    std::cout << "Size: " << size << std::endl;    
+    std::cout << "Index: " << m.start_idx << "\n";
+    std::cout << "Size: " << m.size << std::endl; 
+    std::cout << "Matches: ";
+    for (auto cap: m.captures) {
+      std::cout << cap << " ";  
+    }
     return 0;
 }
