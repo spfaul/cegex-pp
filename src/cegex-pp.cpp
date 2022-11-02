@@ -11,9 +11,9 @@ enum ExprType {
     WORD, // 4
     DIGIT, // 5
     WHITESPACE, // 6
-    CHARSET_OPEN, // 7
-    CHARSET_CLOSE, // 8
-    CHARSET // 9
+    CAPTURE_OPEN, // 7
+    CAPTURE_CLOSE, // 8
+    CAPTURE // 9
 };
 
 struct Expr {
@@ -36,26 +36,27 @@ std::deque<Expr> compile_repattern(std::string s) {
             case '$':
                 PUSH_FIXED
                 toks.push_back(Expr{ExprType::STR_END});
-                break;
+                break;
             case '.':
                 PUSH_FIXED
                 toks.push_back(Expr{ExprType::WILDCARD});
                 break;
-            case '[':
+            case '(':
                 PUSH_FIXED
-                toks.push_back(Expr{ExprType::CHARSET_OPEN});
-                bracket_stack.push(ExprType::CHARSET_OPEN);
+                toks.push_back(Expr{ExprType::CAPTURE_OPEN});
+                bracket_stack.push(ExprType::CAPTURE_OPEN);
                 break;
-            case ']':
+            case ')':
             {
-                if (bracket_stack.size() == 0 || bracket_stack.top() != ExprType::CHARSET_OPEN) {
-                    content += ']';
+                if (bracket_stack.size() == 0 || bracket_stack.top() != ExprType::CAPTURE_OPEN) {
+                    content += ')';
                     break;
                 }
                 bracket_stack.pop();
                 PUSH_FIXED
-                Expr cs = Expr{ExprType::CHARSET};
-                while (toks.back().type != ExprType::CHARSET_OPEN) {
+                Expr cs = Expr{ExprType::CAPTURE};
+                cs.children.push_back(Expr{ExprType::STR_START});
+                while (toks.back().type != ExprType::CAPTURE_OPEN) {
                     cs.children.push_back(toks.back());
                     toks.pop_back();
                 }
@@ -149,6 +150,13 @@ int match_repattern(std::deque<Expr> pattern, std::string text, unsigned int* ma
                 if (idx == (int) text.length() - 1 || !isspace(text[idx+1])) 
                     break;
                 match_size++;
+            } else if (expr.type == ExprType::CAPTURE) {
+                std::string remain = text.substr(match_start_idx + (int) match_size);
+                unsigned int size;
+                int idx = match_repattern(expr.children, remain, &size);
+                if (idx == -1) break;
+                match_size += size;
+                // std::cout << "charset match at " << match_start_idx + idx << std::endl;
             }
             
             matching_exprs++;
@@ -177,12 +185,12 @@ void print_children_recurs(std::deque<Expr> childs) {
 }
 
 int main() {
-    std::deque<Expr> compiled = compile_repattern(R"([asd])");
+    std::deque<Expr> compiled = compile_repattern(R"(a(\d))");
 
     print_children_recurs(compiled);
 
     unsigned int size;
-    int idx = match_repattern(compiled, "asd", &size);
+    int idx = match_repattern(compiled, "aa1", &size);
     std::cout << "\n- Parse - \n";
     std::cout << "Index: " << idx << "\n";
     std::cout << "Size: " << size << std::endl;    
