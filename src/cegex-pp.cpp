@@ -1,4 +1,5 @@
 #include <iostream>
+#include <stdexcept>
 #include <vector>
 #include <deque>
 #include <stack>
@@ -18,7 +19,8 @@ enum ExprType {
     REPEAT_NONE_OR_MORE, // 10
     REPEAT_ONCE_OR_MORE, // 11
     REPEAT_NONE_OR_ONCE, // 12
-    
+    CHAR_RANGE, // 13
+    CHARSET // 14
 };
 
 
@@ -59,6 +61,7 @@ re_t compile_repattern(std::string s) {
             {
                 PUSH_FIXED
                 Expr preceding = toks.back();
+                toks.pop_back();
                 toks.push_back(Expr{ExprType::REPEAT_NONE_OR_MORE, "", {ExprType::STR_START, preceding}});
                 break;
             }
@@ -66,6 +69,7 @@ re_t compile_repattern(std::string s) {
             {
                 PUSH_FIXED
                 Expr preceding = toks.back();
+                toks.pop_back();
                 toks.push_back(Expr{ExprType::REPEAT_ONCE_OR_MORE, "", {ExprType::STR_START, preceding}});
                 break;
             }
@@ -73,8 +77,30 @@ re_t compile_repattern(std::string s) {
             {
                 PUSH_FIXED
                 Expr preceding = toks.back();
+                toks.pop_back();
                 toks.push_back(Expr{ExprType::REPEAT_NONE_OR_ONCE, "", {ExprType::STR_START, preceding}});
+                break;
             }
+            case '[':
+            {
+                PUSH_FIXED
+                re_t children;
+                std::string content;
+                i++; // Ignore "[" char
+                while (i < s.length() && s[i] != ']') {
+                    if (i + 2 < s.length() && s[i+1] == '-' && s[i+2] != ']') {
+                        children.push_back(Expr{ExprType::CHAR_RANGE, std::string() + s[i] + s[i+2]});
+                        i += 3;
+                        continue;
+                    }
+                    content += s[i];
+                    i++;
+                }
+                if (s[i] != ']')
+                    throw std::runtime_error("Unmatched \'[\' in Charset declaration");
+                toks.push_back(Expr{ExprType::CHARSET, content, children});
+                break;
+            } 
             case '(':
                 PUSH_FIXED
                 toks.push_back(Expr{ExprType::CAPTURE_OPEN});
@@ -205,6 +231,25 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
                         match_size += m.size;
                     }
                 }
+            } else if (expr.type == ExprType::CHARSET) {
+                char char_to_match = text[(unsigned int) match_start_idx + match_size];
+                bool matched = false;
+                for (char c: expr.content) {
+                    if (c == char_to_match) {
+                        matched = true;
+                        break;                        
+                    }
+                }
+                if (!matched) {
+                    for (Expr crange: expr.children) {
+                        if (crange.content[0] <= char_to_match && char_to_match <= crange.content[1]) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                if (!matched) break;
+                match_size++;
             }
             matching_exprs++;
             if (matching_exprs == pattern.size())
@@ -231,10 +276,11 @@ void print_children_recurs(re_t &childs) {
 }
 
 int main() {
-    re_t compiled = compile_repattern(R"(a?)");
+    re_t compiled = compile_repattern(R"((www\.)?[a-z]+)");
+    // ^((https?|ftp|smtp):\/\/)?(www.)?[a-z0-9]+\.[a-z]+(\/[a-zA-Z0-9#]+\/?)*$
     print_children_recurs(compiled);
     
-    std::string text = "aaad";
+    std::string text = "www.google";
     ReMatch m = match_repattern(compiled, text);
 
     std::cout << "\n- Parse - \n";
