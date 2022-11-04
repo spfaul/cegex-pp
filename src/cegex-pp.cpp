@@ -62,7 +62,7 @@ re_t compile_repattern(std::string s) {
                 PUSH_FIXED
                 Expr preceding = toks.back();
                 toks.pop_back();
-                toks.push_back(Expr{ExprType::REPEAT_NONE_OR_MORE, "", {ExprType::STR_START, preceding}});
+                toks.push_back(Expr{ExprType::REPEAT_NONE_OR_MORE, "", {Expr{ExprType::STR_START}, preceding}});
                 break;
             }
             case '+':
@@ -70,7 +70,7 @@ re_t compile_repattern(std::string s) {
                 PUSH_FIXED
                 Expr preceding = toks.back();
                 toks.pop_back();
-                toks.push_back(Expr{ExprType::REPEAT_ONCE_OR_MORE, "", {ExprType::STR_START, preceding}});
+                toks.push_back(Expr{ExprType::REPEAT_ONCE_OR_MORE, "", {Expr{ExprType::STR_START}, preceding}});
                 break;
             }
             case '?':
@@ -78,7 +78,7 @@ re_t compile_repattern(std::string s) {
                 PUSH_FIXED
                 Expr preceding = toks.back();
                 toks.pop_back();
-                toks.push_back(Expr{ExprType::REPEAT_NONE_OR_ONCE, "", {ExprType::STR_START, preceding}});
+                toks.push_back(Expr{ExprType::REPEAT_NONE_OR_ONCE, "", {Expr{ExprType::STR_START}, preceding}});
                 break;
             }
             case '[':
@@ -115,11 +115,11 @@ re_t compile_repattern(std::string s) {
                 bracket_stack.pop();
                 PUSH_FIXED
                 Expr cs = Expr{ExprType::CAPTURE};
-                cs.children.push_back(Expr{ExprType::STR_START});
                 while (toks.back().type != ExprType::CAPTURE_OPEN) {
-                    cs.children.push_back(toks.back());
+                    cs.children.push_front(toks.back());
                     toks.pop_back();
                 }
+                cs.children.push_front(Expr{ExprType::STR_START});
                 toks.pop_back();             
                 toks.push_back(cs);
                 break;
@@ -197,7 +197,6 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
                 match_size++;
             } else if (expr.type == ExprType::WORD) {
                 int idx = match_start_idx + match_size - 1;
-                std::cout << "WORD IDX " << idx << " " << match_size << text[idx+1] << std::endl;
                 if (idx == (int) text.length() - 1 || (!isalnum(text[idx+1]) && text[idx+1] != '_'))
                     break;
                 match_size++;
@@ -214,14 +213,14 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
             } else if (expr.type == ExprType::CAPTURE) {
                 std::string remain = text.substr(match_start_idx + (int) match_size);
                 ReMatch m = match_repattern(expr.children, remain);
-                if (m.start_idx == -1)
+                if (m.start_idx != 0)
                     break;
                 captures.push_back(remain.substr(0, m.size));
                 match_size += m.size;
             } else if (expr.type == ExprType::REPEAT_NONE_OR_MORE || expr.type == ExprType::REPEAT_ONCE_OR_MORE || expr.type == ExprType::REPEAT_NONE_OR_ONCE) {
                 std::string remain = text.substr(match_start_idx + (int) match_size);
                 ReMatch m = match_repattern(expr.children, remain);
-                if (expr.type == ExprType::REPEAT_ONCE_OR_MORE && m.start_idx == -1)
+                if (expr.type == ExprType::REPEAT_ONCE_OR_MORE && m.start_idx != 0)
                     break;
                 match_size += m.size;
                 if (expr.type != ExprType::REPEAT_NONE_OR_ONCE) {
@@ -270,17 +269,19 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
 void print_children_recurs(re_t &childs) {
     for (Expr e: childs) {
         std::cout << e.type << " " << e.content << std::endl;
-        if (e.children.size())
+        if (e.children.size()) {
+            std::cout << "CHILDREN START" << std::endl;
             print_children_recurs(e.children);
+            std::cout << "CHILDREN END" << std::endl;
+        }
     }
 }
 
 int main() {
-    re_t compiled = compile_repattern(R"((www\.)?[a-z]+)");
-    // ^((https?|ftp|smtp):\/\/)?(www.)?[a-z0-9]+\.[a-z]+(\/[a-zA-Z0-9#]+\/?)*$
+    re_t compiled = compile_repattern(R"(^(www\.)?[a-z0-9]+\.[a-z]+(/[a-zA-Z0-9]*)*$)");
     print_children_recurs(compiled);
     
-    std::string text = "www.google";
+    std::string text = "www.google.com/asd/";
     ReMatch m = match_repattern(compiled, text);
 
     std::cout << "\n- Parse - \n";
