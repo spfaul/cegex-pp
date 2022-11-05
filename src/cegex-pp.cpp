@@ -4,39 +4,7 @@
 #include <deque>
 #include <stack>
 #include <map>
-
-enum ExprType {
-    FIXED, // 0
-    STR_START, // 1
-    STR_END, // 2
-    WILDCARD, // 3
-    WORD, // 4
-    DIGIT, // 5
-    WHITESPACE, // 6
-    CAPTURE_OPEN, // 7
-    CAPTURE_CLOSE, // 8
-    CAPTURE, // 9
-    REPEAT_NONE_OR_MORE, // 10
-    REPEAT_ONCE_OR_MORE, // 11
-    REPEAT_NONE_OR_ONCE, // 12
-    CHAR_RANGE, // 13
-    CHARSET // 14
-};
-
-
-struct Expr {
-    ExprType type;
-    std::string content = "";
-    std::deque<Expr> children = {};
-};
-
-using re_t = std::deque<Expr>;
-
-struct ReMatch {
-    int start_idx;
-    unsigned int size;
-    std::vector<std::string> captures;
-};
+#include "cegex-pp.hpp"
 
 #define PUSH_FIXED if (content.length()) toks.push_back(Expr{ExprType::FIXED, content}); content.clear();
 re_t compile_repattern(std::string s) {
@@ -265,31 +233,3 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
         
     return ReMatch {match_start_idx, match_size, captures};
 };
-
-void print_children_recurs(re_t &childs) {
-    for (Expr e: childs) {
-        std::cout << e.type << " " << e.content << std::endl;
-        if (e.children.size()) {
-            std::cout << "CHILDREN START" << std::endl;
-            print_children_recurs(e.children);
-            std::cout << "CHILDREN END" << std::endl;
-        }
-    }
-}
-
-int main() {
-    re_t compiled = compile_repattern(R"(^(www\.)?[a-z0-9]+\.[a-z]+(/[a-zA-Z0-9]*)*$)");
-    print_children_recurs(compiled);
-    
-    std::string text = "www.google.com/asd/";
-    ReMatch m = match_repattern(compiled, text);
-
-    std::cout << "\n- Parse - \n";
-    std::cout << "Index: " << m.start_idx << "\n";
-    std::cout << "Size: " << m.size << std::endl; 
-    std::cout << "Matches: ";
-    for (auto cap: m.captures) {
-      std::cout << cap << " ";  
-    }
-    return 0;
-}

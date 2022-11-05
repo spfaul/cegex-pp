@@ -1,7 +1,15 @@
+BINARY_NAME = out
+SRCS = ./src/cegex-pp.cpp ./src/test.cpp
+CXX = g++
+CXX_FLAGS = -Wall -Wextra
+
 all: build run
 
 build:
-	g++ ./src/cegex-pp.cpp -Wall -o out
+	g++ $(SRCS) $(CXX_FLAGS) -I./include/ -o $(BINARY_NAME)
 
 run: build
-	./out
+	./$(BINARY_NAME)
+
+clean:
+	rm $(BINARY_NAME)
