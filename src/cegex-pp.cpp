@@ -172,7 +172,7 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
                 int idx = match_start_idx + match_size - 1;
                 if (idx == (int) text.length() - 1 || !isdigit(text[idx+1]))
                     break;
-                match_size++;                
+                match_size++;
             } else if (expr.type == ExprType::WHITESPACE) {
                 int idx = match_start_idx + match_size - 1;
                 if (idx == (int) text.length() - 1 || !isspace(text[idx+1])) 
@@ -185,17 +185,20 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
                     break;
                 captures.push_back(remain.substr(0, m.size));
                 match_size += m.size;
+                captures.insert(captures.end(), m.captures.begin(), m.captures.end());
             } else if (expr.type == ExprType::REPEAT_NONE_OR_MORE || expr.type == ExprType::REPEAT_ONCE_OR_MORE || expr.type == ExprType::REPEAT_NONE_OR_ONCE) {
                 std::string remain = text.substr(match_start_idx + (int) match_size);
                 ReMatch m = match_repattern(expr.children, remain);
                 if (expr.type == ExprType::REPEAT_ONCE_OR_MORE && m.start_idx != 0)
                     break;
                 match_size += m.size;
+                captures.insert(captures.end(), m.captures.begin(), m.captures.end());
                 if (expr.type != ExprType::REPEAT_NONE_OR_ONCE) {
                     while (m.start_idx != -1 && (unsigned int) match_start_idx + match_size < text.length()) {
                         remain = text.substr(match_start_idx + (int) match_size);
                         m = match_repattern(expr.children, remain);
                         match_size += m.size;
+                        captures.insert(captures.end(), m.captures.begin(), m.captures.end());
                     }
                 }
             } else if (expr.type == ExprType::CHARSET) {
