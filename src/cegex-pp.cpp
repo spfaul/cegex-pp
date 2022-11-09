@@ -235,4 +235,4 @@ ReMatch match_repattern(re_t &pattern, std::string &text) {
     if (!found || early_exit) match_start_idx = -1;
         
     return ReMatch {match_start_idx, match_size, captures};
-};
+}

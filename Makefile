@@ -1,8 +1,8 @@
-EXEC_PATH = out
+EXEC_PATH = test.out
 SRCS = ./src/cegex-pp.cpp 
 TEST_SRCS = ./src/test.cpp
 CXX = g++
-CXX_FLAGS = -Wall -Wextra -std=c++17
+CXX_FLAGS = -Wall -Wextra -Wpedantic -std=c++14
 INCLUDE = -I./include/
 OBJ_BUILD_PATH = ./build/libcegex-pp.o
 SHARED_LIB_BUILD_PATH = ./build/libcegex-pp.so
@@ -22,5 +22,5 @@ test:
 	@./$(EXEC_PATH)
 
 clean:
-	@rm $(BINARY_NAME)
+	@rm $(EXEC_PATH)
 	@rm $(OBJ_BUILD_PATH) $(SHARED_LIB_BUILD_PATH) $(STATIC_LIB_BUILD_PATH) $(EXEC_PATH)

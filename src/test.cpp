@@ -17,12 +17,12 @@ int main() {
     std::string text = "www.google.com/asd/";
     ReMatch m = match_repattern(compiled, text);
 
-    std::cout << "\n- Parse - \n";
+    // std::cout << "\n- Parse - \n";
     std::cout << "Index: " << m.start_idx << "\n";
-    std::cout << "Size: " << m.size << std::endl; 
-    std::cout << "Matches: ";
-    for (auto cap: m.captures) {
-      std::cout << cap << " ";  
-    }
+    // std::cout << "Size: " << m.size << "\n";
+    // std::cout << "Matches: ";
+    // for (auto cap: m.captures) {
+      // std::cout << cap << "|";
+    // }
     return 0;
 }
